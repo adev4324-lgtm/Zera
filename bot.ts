@@ -29,7 +29,40 @@ try {
 } catch {
   console.warn('@napi-rs/canvas not installed: Wordle will use emoji text. Run: npm install @napi-rs/canvas');
 }
+
+// Canvas needs a font file to draw any text. The server may have none, so we bundle one.
+let CANVAS_FONT = 'sans-serif';
+function setupCanvasFont(): void {
+  if (!canvasLib) return;
+  const candidates = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'
+  ];
+  const scan = (dir: string, depth = 0): string | null => {
+    if (depth > 4 || !fsSync.existsSync(dir)) return null;
+    for (const name of fsSync.readdirSync(dir)) {
+      const full = pathSync.join(dir, name);
+      if (/DejaVuSans-Bold\.ttf$/i.test(name)) return full;
+      if (fsSync.statSync(full).isDirectory()) { const hit = scan(full, depth + 1); if (hit) return hit; }
+    }
+    return null;
+  };
+  let file = candidates.find(f => fsSync.existsSync(f)) || null;
+  if (!file) file = scan(pathSync.join(process.cwd(), 'node_modules', 'dejavu-fonts-ttf'));
+  if (!file) { console.warn('No font found for images: run npm install dejavu-fonts-ttf'); return; }
+  try {
+    canvasLib.GlobalFonts.registerFromPath(file, 'YamaSans');
+    CANVAS_FONT = 'YamaSans';
+    console.log('✅ Image font loaded:', file);
+  } catch (e: any) {
+    console.warn('Could not register image font:', e.message);
+  }
+}
+setupCanvasFont();
 import { spawn as spawnProc } from 'child_process';
+import fsSync from 'fs';
+import pathSync from 'path';
 import { mkdtemp as mkdtempFs, readFile as readFileFs, readdir as readdirFs, rm as rmFs, writeFile as writeFileFs } from 'fs/promises';
 import { tmpdir as tmpdirFs } from 'os';
 import { join } from 'path';
@@ -150,7 +183,7 @@ let isFirebaseReady = false;
 try {
   // Config comes from the FIREBASE_CONFIG env var (JSON) or firebase-applet-config.json
   const configPath = resolve(process.cwd(), 'firebase-applet-config.json');
-  const rawConfig = process.env.FIREBASE_CONFIG || (fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '');
+  const rawConfig = process.env.FIREBASE_CONFIG || (fsSync.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '');
   if (rawConfig) {
     const cfg = JSON.parse(rawConfig);
     const firebaseApp = initializeApp(cfg);
@@ -6503,7 +6536,7 @@ async function renderWordleBoard(g: any): Promise<Buffer | null> {
   ctx.fillStyle = '#FFF0F6';
   ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#E11D74';
-  ctx.font = 'bold 34px sans-serif';
+  ctx.font = `bold 34px ${CANVAS_FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('WORDLE', W / 2, HEAD / 2);
@@ -6527,7 +6560,7 @@ async function renderWordleBoard(g: any): Promise<Buffer | null> {
       ctx.fillStyle = WORDLE_TILE_COLORS[scores[col]] || '#8E8E93';
       ctx.fill();
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 44px sans-serif';
+      ctx.font = `bold 44px ${CANVAS_FONT}`;
       ctx.fillText(guess.word[col].toUpperCase(), x + T / 2, y + T / 2 + 2);
     }
   }
@@ -6771,13 +6804,13 @@ async function renderImpostorWordCard(word: string): Promise<Buffer | null> {
   ctx.lineWidth = 10;
   ctx.strokeRect(20, 20, W - 40, H - 40);
   ctx.fillStyle = '#E11D74';
-  ctx.font = 'bold 36px sans-serif';
+  ctx.font = `bold 36px ${CANVAS_FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('YOUR SECRET WORD', W / 2, 90);
   let size = 120;
-  ctx.font = `bold ${size}px sans-serif`;
-  while (ctx.measureText(word).width > W - 120 && size > 40) { size -= 6; ctx.font = `bold ${size}px sans-serif`; }
+  ctx.font = `bold ${size}px ${CANVAS_FONT}`;
+  while (ctx.measureText(word).width > W - 120 && size > 40) { size -= 6; ctx.font = `bold ${size}px ${CANVAS_FONT}`; }
   ctx.fillStyle = '#4B1D3F';
   ctx.fillText(word.toUpperCase(), W / 2, H / 2 + 30);
   return canvas.toBuffer('image/png');
