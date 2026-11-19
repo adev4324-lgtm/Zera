@@ -76,14 +76,13 @@ const BOT_NAME = 'Bot';
 const BOT_MODEL_NAME = `${BOT_NAME} AI`;
 
 // One look for every embed
-const BRAND_COLOR = 0xF9A8D4;
-function brandEmbed(): EmbedBuilder {
-  const avatar = client?.user?.displayAvatarURL?.();
+// Soft pastel palette. Every embed uses this look, so the bot feels like one piece.
+const BRAND_COLOR = 0xF5B7E6;
+const EMBED_TONES = { sweet: 0xF5B7E6, dreamy: 0xC4B5FD, mint: 0xA7F3D0, peach: 0xFFD6A5, sky: 0xA5D8FF } as const;
+function brandEmbed(tone: keyof typeof EMBED_TONES = 'sweet'): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(BRAND_COLOR)
-    .setAuthor({ name: BOT_NAME, ...(avatar ? { iconURL: avatar } : {}) })
-    .setFooter({ text: `${BOT_NAME} ✿` })
-    .setTimestamp();
+    .setColor(EMBED_TONES[tone] ?? BRAND_COLOR)
+    .setFooter({ text: `✧ ${BOT_NAME} · made with care ✧` });
 }
 
 // Custom emojis (animated too) that the bot can see, by name, for use in embeds.
@@ -6668,7 +6667,7 @@ function wordleEmbed(g: any, withPicture = false): any {
   return brandEmbed()
     .setTitle('🟩  Wordle')
     .setDescription(`${rows ? rows + '\n\n' : ''}${status}`)
-    .setFooter({ text: `Only the player can guess. Everyone else can watch  •  ${BOT_NAME} ✿` });
+    .setFooter({ text: `Only the player can guess. Everyone else can watch  ✧  ${BOT_NAME}  ✧` });
 }
 
 function wordleShareRow(g: any): any {
@@ -6889,7 +6888,7 @@ function impLobbyEmbed(g: ImpGame): any {
   return brandEmbed()
     .setTitle('🕵️  IMPOSTOR LOBBY')
     .setDescription(`Hosted by <@${g.hostId}>\n\n**Players (${g.players.size}/${g.settings.maxPlayers})**\n${list}\n\nMode: **${IMP_MODES[g.mode].label}**\nNeeds ${g.settings.minPlayers} to ${g.settings.maxPlayers} players. Only the host can start.`)
-    .setFooter({ text: `Game ${g.id}  •  ${BOT_NAME} ✿` });
+    .setFooter({ text: `Game ${g.id}  ✧  ${BOT_NAME}  ✧` });
 }
 
 function impLobbyComponents(g: ImpGame): any[] {
@@ -7450,7 +7449,7 @@ async function handleRolePanelRequest(message: any): Promise<boolean> {
   const embed = brandEmbed()
     .setTitle(String(plan.title || 'Pick your roles').substring(0, 256))
     .setDescription(String(plan.description || 'Click a button to get a role. Click it again to remove it.').substring(0, 4000))
-    .setFooter({ text: `Click to add or remove a role  •  ${BOT_NAME} ✿` });
+    .setFooter({ text: `Click to add or remove a role  ✧  ${BOT_NAME}  ✧` });
   const posted = await channel.send({ embeds: [embed], components: rows, allowedMentions: { parse: [] } }).catch(() => null);
   if (!posted) { await say("❌ I couldn't post the panel there. Check my permissions in that channel."); return true; }
   await say(`✅ Role panel posted in <#${channel.id}> with ${buttons.length} button(s).`);
@@ -7475,6 +7474,19 @@ async function handleRoleButton(interaction: any): Promise<void> {
   } catch (e: any) {
     return void ephemeral(`❌ I couldn't change that role: ${e.message}`);
   }
+}
+
+// AFK cards: avatar thumbnail, icon-labelled fields, short footer
+function afkCard(opts: { title: string; description: string; user: any; fields: Array<{ name: string; value: string }>; footer: string }): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(EMBED_TONES.dreamy)
+    .setTitle(opts.title)
+    .setDescription(opts.description)
+    .addFields(opts.fields.map(f => ({ name: f.name, value: f.value.substring(0, 1024) || '—', inline: false })))
+    .setFooter({ text: `${opts.footer} ♡` });
+  const avatar = opts.user?.displayAvatarURL?.({ size: 256 });
+  if (avatar) embed.setThumbnail(avatar);
+  return embed;
 }
 
 // Message create handler
@@ -7534,7 +7546,7 @@ client.on('messageCreate', async (message) => {
       deleteDoc(doc(firestoreDb, 'afk_users', `${afkGuild}_${message.author.id}`)).catch(() => {});
     }
     const away = formatAfkDuration(Date.now() - (gone?.timestamp || Date.now()));
-    message.reply(`👋 Welcome back <@${message.author.id}>, I removed your AFK. You were away **${away}**.`).catch(() => {});
+    message.reply({ embeds: [afkCard({ title: '👋  Welcome back', description: `<@${message.author.id}>, I removed your AFK.`, user: message.author, fields: [{ name: '⏱️ Away for', value: away }, { name: '👤 User', value: message.author.username }], footer: 'Glad to have you back' })], allowedMentions: { parse: [] } }).catch(() => {});
   }
 
   // 2. AFK Mention Responder
@@ -7543,7 +7555,7 @@ client.on('messageCreate', async (message) => {
       if (mentionedUser.id !== message.author.id && afkUsers.has(afkKey(afkGuild, mentionedUser.id))) {
         const afkInfo = afkUsers.get(afkKey(afkGuild, mentionedUser.id));
         const since = Math.floor((afkInfo?.timestamp || Date.now()) / 1000);
-        message.reply(`💤 <@${mentionedUser.id}> is AFK: **${afkInfo?.reason || 'AFK'}**\nSince <t:${since}:f> (<t:${since}:R>)`).catch(() => {});
+        message.reply({ embeds: [afkCard({ title: '💤  User is Currently AFK', description: `<@${mentionedUser.id}> is away right now...`, user: mentionedUser, fields: [{ name: '⏱️ Away since', value: `<t:${since}:R>` }, { name: '📝 Reason', value: afkInfo?.reason || 'AFK' }], footer: 'They will be back soon' })], allowedMentions: { parse: [] } }).catch(() => {});
       }
     });
   }
@@ -7750,7 +7762,7 @@ async function runPrefixCommand(message: any, command: string | undefined, args:
         updatedAt: Date.now()
       }).catch(() => {});
     }
-    return message.reply(`💤 <@${message.author.id}>, I have set your AFK: **${reason}**`).catch(() => {});
+    return message.reply({ embeds: [afkCard({ title: '💤  AFK Mode Activated', description: `<@${message.author.id}> is now away from keyboard`, user: message.author, fields: [{ name: '👤 User', value: message.author.username }, { name: '⏱️ Away since', value: `<t:${Math.floor(Date.now() / 1000)}:R>` }, { name: '📝 Reason', value: reason }], footer: 'You will be notified when mentioned' })], allowedMentions: { parse: [] } }).catch(() => {});
   }
 
   if (command === 'wordle') { await startWordle(message); return; }
