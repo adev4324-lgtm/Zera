@@ -5741,7 +5741,7 @@ async function handleRoleCommand(message: any, command: string, rawArgs: string,
     const ch: any = id ? guild.channels.cache.get(id) : null;
     if (!ch?.isTextBased?.()) return say('Usage: `?apppanel #channel`');
     const embed = brandEmbed()
-      .setTitle('📝  Applications are open')
+      .setTitle(`${emo('write', '📝')}  Applications are open`)
       .setDescription('Pick a role from the menu below. We will message you the questions in DMs.\n\n🤝 **Helper**\n🎉 **Giveaway Host**\n🛡️ **Moderator**\n🎬 **Content Creator**\n\nYou will get a code to track your application.');
     await ch.send({ embeds: [embed], components: [appSelectRow()] });
     return say(`✅ Application panel posted in <#${ch.id}>.`);
@@ -6107,7 +6107,7 @@ function appDecisionRows(code: string, showReview: boolean): any[] {
 
 function appLogEmbed(app: any): any {
   const embed = brandEmbed()
-    .setTitle(`📝  ${APP_TYPES[app.type].label} application`)
+    .setTitle(`${emo('write', '📝')}  ${APP_TYPES[app.type].label} application`)
     .setDescription(`Applicant: <@${app.userId}>\nCode: \`${app.code}\`\nStatus: ${APP_STATUS_LABEL[app.status] || app.status}`);
   embed.addFields(app.answers.map((x: any, i: number) => ({
     name: `${i + 1}. ${x.q}`.substring(0, 256), value: x.a.substring(0, 1024) || '—', inline: false
@@ -6173,7 +6173,7 @@ async function handleAppSelect(interaction: any): Promise<void> {
   appActive.add(key);
   await interaction.deferReply({ ephemeral: true });
   const started = await interaction.user.send({ embeds: [brandEmbed()
-    .setTitle(`📝  ${APP_TYPES[typeKey].label} application`)
+    .setTitle(`${emo('write', '📝')}  ${APP_TYPES[typeKey].label} application`)
     .setDescription(`Answer each question in one message. You have 15 minutes per question.\nType \`cancel\` at any time to stop.`)] })
     .then(() => true).catch(() => false);
   if (!started) {
@@ -6884,7 +6884,7 @@ async function impRolePayload(g: ImpGame, player: ImpPlayer): Promise<any> {
 }
 
 function impLobbyEmbed(g: ImpGame): any {
-  const list = [...g.players.values()].map((p, i) => `${i + 1}. <@${p.id}>${p.id === g.hostId ? ' 👑' : ''}`).join('\n') || '*Nobody yet*';
+  const list = [...g.players.values()].map((p, i) => `${i + 1}. <@${p.id}>${p.id === g.hostId ? ' ' + emo('crown', '👑') : ''}`).join('\n') || '*Nobody yet*';
   return brandEmbed()
     .setTitle('🕵️  IMPOSTOR LOBBY')
     .setDescription(`Hosted by <@${g.hostId}>\n\n**Players (${g.players.size}/${g.settings.maxPlayers})**\n${list}\n\nMode: **${IMP_MODES[g.mode].label}**\nNeeds ${g.settings.minPlayers} to ${g.settings.maxPlayers} players. Only the host can start.`)
@@ -7546,7 +7546,7 @@ client.on('messageCreate', async (message) => {
       deleteDoc(doc(firestoreDb, 'afk_users', `${afkGuild}_${message.author.id}`)).catch(() => {});
     }
     const away = formatAfkDuration(Date.now() - (gone?.timestamp || Date.now()));
-    message.reply({ embeds: [afkCard({ title: '👋  Welcome back', description: `<@${message.author.id}>, I removed your AFK.`, user: message.author, fields: [{ name: '⏱️ Away for', value: away }, { name: '👤 User', value: message.author.username }], footer: 'Glad to have you back' })], allowedMentions: { parse: [] } }).catch(() => {});
+    message.reply({ embeds: [afkCard({ title: `${emo('heart', '👋')}  Welcome back`, description: `${emo('heart', '💖')} <@${message.author.id}>, I removed your AFK.`, user: message.author, fields: [{ name: `${emo('zzz', '⏱️')} Away for`, value: away }, { name: `${emo('dio', '👥')} User`, value: message.author.username }], footer: 'Glad to have you back' })], allowedMentions: { parse: [] } }).catch(() => {});
   }
 
   // 2. AFK Mention Responder
@@ -7555,7 +7555,7 @@ client.on('messageCreate', async (message) => {
       if (mentionedUser.id !== message.author.id && afkUsers.has(afkKey(afkGuild, mentionedUser.id))) {
         const afkInfo = afkUsers.get(afkKey(afkGuild, mentionedUser.id));
         const since = Math.floor((afkInfo?.timestamp || Date.now()) / 1000);
-        message.reply({ embeds: [afkCard({ title: '💤  User is Currently AFK', description: `<@${mentionedUser.id}> is away right now...`, user: mentionedUser, fields: [{ name: '⏱️ Away since', value: `<t:${since}:R>` }, { name: '📝 Reason', value: afkInfo?.reason || 'AFK' }], footer: 'They will be back soon' })], allowedMentions: { parse: [] } }).catch(() => {});
+        message.reply({ embeds: [afkCard({ title: `${emo('afk', '💤')}  User is Currently AFK`, description: `<@${mentionedUser.id}> is away right now...`, user: mentionedUser, fields: [{ name: `${emo('zzz', '⏱️')} Away since`, value: `<t:${since}:R>` }, { name: `${emo('write', '📝')} Reason`, value: afkInfo?.reason || 'AFK' }], footer: 'They will be back soon' })], allowedMentions: { parse: [] } }).catch(() => {});
       }
     });
   }
@@ -7762,7 +7762,7 @@ async function runPrefixCommand(message: any, command: string | undefined, args:
         updatedAt: Date.now()
       }).catch(() => {});
     }
-    return message.reply({ embeds: [afkCard({ title: '💤  AFK Mode Activated', description: `<@${message.author.id}> is now away from keyboard`, user: message.author, fields: [{ name: '👤 User', value: message.author.username }, { name: '⏱️ Away since', value: `<t:${Math.floor(Date.now() / 1000)}:R>` }, { name: '📝 Reason', value: reason }], footer: 'You will be notified when mentioned' })], allowedMentions: { parse: [] } }).catch(() => {});
+    return message.reply({ embeds: [afkCard({ title: `${emo('zzz', '💤')}  AFK Mode Activated`, description: `<@${message.author.id}> is now away from keyboard`, user: message.author, fields: [{ name: `${emo('dio', '👥')} User`, value: message.author.username }, { name: `${emo('zzz', '⏱️')} Away since`, value: `<t:${Math.floor(Date.now() / 1000)}:R>` }, { name: `${emo('write', '📝')} Reason`, value: reason }], footer: 'You will be notified when mentioned' })], allowedMentions: { parse: [] } }).catch(() => {});
   }
 
   if (command === 'wordle') { await startWordle(message); return; }
